@@ -3,10 +3,12 @@ from pydantic import BaseModel
 import sys
 import os
 import json
+import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from typing import List, Tuple
-from ImportDB2Faiss import VetFAISS
+from sql.ImportDB2Faiss import VetFAISS
 from core.extract_parameters import ExtractParameters
+from sql.SearchVecDoc import VetDocumentSearch
 
 class MessageContent(BaseModel):
     role: Optional[str] = ""
@@ -58,6 +60,19 @@ messages = [
         role="user",
         content="""ตอนนี้รานีอ้วนมาก""",
         detail={},
+        image_url={}
+    ),
+    
+     MessageContent(
+        role="userprofile",
+        content="",
+        detail = {
+    "ชื่อเจ้าของ": "เดวิด",
+    "แมว": {
+        "ชื่อแมว": "รานี",
+        "อายุแมว": 3
+    }
+},
         image_url={}
     ),
     MessageContent(
@@ -121,7 +136,7 @@ Nhamaew Pet Ai หวังว่าคำแนะนำนี้จะช่�
     ),
         MessageContent(
         role="user",
-        content="""รานีปวดตัว""",
+        content="""รานีอ้วก ผอมลง""",
         detail={},
         image_url={}
     )
@@ -134,33 +149,14 @@ request_body = RequestBody(
     messages=messages
 )
 
-'''
 
 
-# Function to search vet documents based on user query
-def search_vet_documents(request_body):
-    # Extract content where role is 'user'
-    user_message = next((message.content for message in request_body.messages if message.role == "user"), None)
-    print(user_message)
-    if user_message:
-        query = user_message  # Use content of user message as query
-        print(f"query {query}")
-        # Assuming vet_faiss.search_vet_doc() is a function you have access to
-        search_results = VetFAISS.search_vet_doc(query, top_k=2)
 
-        # Print the search results
-        print("\n🔍 Search Results for:", query)
-        for result in search_results:
-            print(result)  # Modify based on the actual structure of the results
-    else:
-        print("No user message found to process")
-
-# Call the function
-search_vet_documents(request_body)
-'''
 
 
 system_prompt, request_messages_list, context = ExtractParameters._process_messages(messages)
+
+
 print("=" * 50)
 print("🔹 SYSTEM PROMPT:")
 print(system_prompt)
@@ -169,15 +165,35 @@ print("=" * 50)
 print("\n🔹 REQUEST MESSAGES:")
 print(json.dumps(request_messages_list, indent=4, ensure_ascii=False))  # Pretty print JSON
 
-print("\n🔹 CONTEXT:")
-print(json.dumps(context, indent=4, ensure_ascii=False))  # Pretty print JSON
-print("=" * 50)
+
 
 
 question,history = ExtractParameters._extract_questions_and_history(request_messages_list)
 
 print(f"Question {question}")
+print("=" * 50)
+print(f"History {history}")
 '''
 print(f"History")
 print(json.dumps(history, indent=4, ensure_ascii=False)) 
 '''
+
+
+def convert_float32_to_float(data):
+    if isinstance(data, dict):
+        return {k: convert_float32_to_float(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [convert_float32_to_float(i) for i in data]
+    elif isinstance(data, np.float32):  # Convert np.float32 to float
+        return float(data)
+    return data
+
+# Process vet_doc
+vet_doc = VetDocumentSearch.search_documents(question)
+vet_doc_cleaned = convert_float32_to_float(vet_doc)  # Convert float32 values
+
+# Append to context
+context.append(json.dumps(vet_doc_cleaned, indent=4, ensure_ascii=False))
+
+print(F"Context: {context}")
+print("=" * 50)
